@@ -3,8 +3,7 @@ from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.db.models import Q, Max
 from rest_framework import status
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly
+from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework.exceptions import ValidationError
 from decimal import Decimal
@@ -21,7 +20,6 @@ from .serializers import (
 
 # SUBASTAS VIEWS
 @api_view(['GET', 'POST'])
-@permission_classes([IsAuthenticatedOrReadOnly])
 def subastas_list(request):
     if request.method == 'GET':
         queryset = Subasta.objects.all()
@@ -98,13 +96,6 @@ def subastas_list(request):
         return Response(serializer.data)
     
     elif request.method == 'POST':
-        # Solo usuarios autenticados pueden crear subastas
-        if not request.user.is_authenticated:
-            return Response(
-                {"error": "Debe iniciar sesión para crear una subasta."},
-                status=status.HTTP_401_UNAUTHORIZED
-            )
-            
         serializer = SubastaSerializer(data=request.data)
         if serializer.is_valid():
             # Validar que el stock y precio sean positivos
@@ -145,12 +136,11 @@ def subastas_list(request):
                 )
             
             # Al guardar, el modelo automáticamente establece el estado basado en las fechas
-            serializer.save(usuario=request.user)
+            serializer.save(usuario=request.user if hasattr(request, 'user') else None)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 @api_view(['GET', 'PUT', 'DELETE'])
-@permission_classes([IsAuthenticatedOrReadOnly])
 def subasta_detail(request, id_subasta):
     try:
         subasta = Subasta.objects.get(id=id_subasta)
@@ -170,13 +160,6 @@ def subasta_detail(request, id_subasta):
         return Response(serializer.data)
     
     elif request.method == 'PUT':
-        # Solo usuarios autenticados pueden actualizar subastas
-        if not request.user.is_authenticated:
-            return Response(
-                {"error": "Debe iniciar sesión para actualizar una subasta."},
-                status=status.HTTP_401_UNAUTHORIZED
-            )
-            
         serializer = SubastaSerializer(subasta, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
@@ -184,13 +167,6 @@ def subasta_detail(request, id_subasta):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
     elif request.method == 'DELETE':
-        # Solo usuarios autenticados pueden eliminar subastas
-        if not request.user.is_authenticated:
-            return Response(
-                {"error": "Debe iniciar sesión para eliminar una subasta."},
-                status=status.HTTP_401_UNAUTHORIZED
-            )
-            
         subasta.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
@@ -232,7 +208,6 @@ def categoria_update_delete(request, id_categoria):
 
 # PUJAS VIEWS
 @api_view(['GET', 'POST'])
-@permission_classes([IsAuthenticatedOrReadOnly])
 def pujas_list(request, id_subasta):
     try:
         subasta = Subasta.objects.get(id=id_subasta)
@@ -254,13 +229,6 @@ def pujas_list(request, id_subasta):
         return Response(serializer.data)
     
     elif request.method == 'POST':
-        # Solo usuarios autenticados pueden hacer pujas
-        if not request.user.is_authenticated:
-            return Response(
-                {"error": "Debe iniciar sesión para hacer una puja."},
-                status=status.HTTP_401_UNAUTHORIZED
-            )
-            
         # Verificar si la subasta está abierta
         if subasta.estado == 'cerrada' or subasta.fecha_cierre <= timezone.now():
             return Response(
@@ -297,12 +265,11 @@ def pujas_list(request, id_subasta):
         # Crear la serializer con los datos de la solicitud
         serializer = PujaSerializer(data=request.data, context={'request': request, 'subasta': subasta})
         if serializer.is_valid():
-            serializer.save(subasta=subasta, usuario=request.user)
+            serializer.save(subasta=subasta, usuario=request.user if hasattr(request, 'user') else None)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 @api_view(['GET', 'PUT', 'DELETE'])
-@permission_classes([IsAuthenticatedOrReadOnly])
 def puja_detail(request, id_subasta, idPuja):
     try:
         subasta = Subasta.objects.get(id=id_subasta)
@@ -328,13 +295,6 @@ def puja_detail(request, id_subasta, idPuja):
         return Response(serializer.data)
     
     elif request.method == 'PUT':
-        # Solo usuarios autenticados pueden actualizar pujas
-        if not request.user.is_authenticated:
-            return Response(
-                {"error": "Debe iniciar sesión para actualizar una puja."},
-                status=status.HTTP_401_UNAUTHORIZED
-            )
-            
         # Verificar si la subasta está abierta
         if subasta.estado == 'cerrada' or subasta.fecha_cierre <= timezone.now():
             return Response(
@@ -349,13 +309,6 @@ def puja_detail(request, id_subasta, idPuja):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
     elif request.method == 'DELETE':
-        # Solo usuarios autenticados pueden eliminar pujas
-        if not request.user.is_authenticated:
-            return Response(
-                {"error": "Debe iniciar sesión para eliminar una puja."},
-                status=status.HTTP_401_UNAUTHORIZED
-            )
-            
         # Verificar si la subasta está abierta
         if subasta.estado == 'cerrada' or subasta.fecha_cierre <= timezone.now():
             return Response(
