@@ -28,7 +28,7 @@ SECRET_KEY = 'django-insecure--dt5qvkxlewi#09wt=e8q8syb$4wc9)f(@rwzq66_$yk6o2qq6
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ["127.0.0.1", "@dpg-cvqjclidbo4c73djif70-a.oregon-postgres.render.com", "pacomprarserver.onrender.com"]
+ALLOWED_HOSTS = ["localhost:3001","localhost", "127.0.0.1", "0.0.0.0", "127.0.0.1", "@dpg-cvqjclidbo4c73djif70-a.oregon-postgres.render.com", "pacomprarserver.onrender.com"]
 
 
 # Application definition
@@ -43,9 +43,12 @@ INSTALLED_APPS = [
     'subastas',
     'rest_framework', #para importar el framework django REST al proyecto
     'drf_spectacular', #para importar la extensión drf spectacular al proyecto
+    'corsheaders'
 ]
 
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware', #Añadir en primera posición
+    'django.middleware.common.CommonMiddleware', #Mover a segunda posición
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -138,3 +141,7 @@ SPECTACULAR_SETTINGS = {
 'VERSION': '1.0.0',
 'SERVE_INCLUDE_SCHEMA': False,
 }
+
+
+CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_CREDENTIALS = True
