@@ -2,6 +2,7 @@ from django.db import models
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.utils import timezone
 from datetime import timedelta
+from usuarios.models import CustomUser
 
 class Categoria(models.Model):
     nombre = models.CharField(max_length=50, blank=False, unique=True)
@@ -48,6 +49,14 @@ class Subasta(models.Model):
         choices=ESTADO_CHOICES,
         default='abierta'
     )
+    
+    # Relación con el usuario que crea la subasta
+    usuario = models.ForeignKey(
+        CustomUser, 
+        related_name="subastas", 
+        on_delete=models.CASCADE,
+        null=True  # Temporalmente permitimos valores nulos para migración
+    )
 
     class Meta:
         ordering = ("id",)
@@ -87,10 +96,17 @@ class Puja(models.Model):
     )
     cantidad = models.DecimalField(max_digits=10, decimal_places=2)
     fecha_puja = models.DateTimeField(auto_now_add=True)
-    pujador = models.CharField(max_length=100)
+    
+    # Cambiando el campo pujador de CharField a ForeignKey
+    pujador = models.ForeignKey(
+        CustomUser,
+        related_name="pujas",
+        on_delete=models.CASCADE,
+        null=True  # Temporalmente permitimos valores nulos para migración
+    )
 
     class Meta:
         ordering = ("-fecha_puja",)  # Ordenar por fecha de puja descendente
 
     def __str__(self):
-        return f"{self.pujador} - ${self.cantidad} - {self.subasta.titulo}"
+        return f"{self.pujador.username} - ${self.cantidad} - {self.subasta.titulo}"

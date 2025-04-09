@@ -15,6 +15,8 @@ import os
 import dj_database_url 
 from dotenv import load_dotenv 
 
+from datetime import timedelta
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -28,7 +30,7 @@ SECRET_KEY = 'django-insecure--dt5qvkxlewi#09wt=e8q8syb$4wc9)f(@rwzq66_$yk6o2qq6
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ["localhost:3001","localhost", "127.0.0.1", "0.0.0.0", "127.0.0.1", "@dpg-cvqjclidbo4c73djif70-a.oregon-postgres.render.com", "pacomprarserver.onrender.com"]
+ALLOWED_HOSTS = ["localhost:3001","localhost", "127.0.0.1", "0.0.0.0", "127.0.0.1", "dpg-cvr8rkq4d50c738g01e0-a.oregon-postgres.render.com", "pacomprarserver.onrender.com"]
 
 
 # Application definition
@@ -43,7 +45,10 @@ INSTALLED_APPS = [
     'subastas',
     'rest_framework', #para importar el framework django REST al proyecto
     'drf_spectacular', #para importar la extensión drf spectacular al proyecto
-    'corsheaders'
+    'corsheaders',
+    'rest_framework_simplejwt',
+    'rest_framework_simplejwt.token_blacklist',
+    'usuarios'
 ]
 
 MIDDLEWARE = [
@@ -51,7 +56,6 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware', #Mover a segunda posición
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
-    'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
@@ -81,9 +85,23 @@ WSGI_APPLICATION = 'PacomprarServer.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-load_dotenv() 
-DATABASES = { 
-'default': dj_database_url.config(default=os.getenv("DATABASE_URL")) 
+# Cargar las variables de entorno desde .env
+load_dotenv()
+
+# Conectar directamente a la base de datos sin usar dj_database_url
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'db_pacomprar_dute',
+        'USER': 'db_pacomprar_dute_user',
+        'PASSWORD': 'gTG3nr8G2qTaTL1JTOQ8gPgVa5BBPk1C',
+        'HOST': 'dpg-cvr8rkq4d50c738g01e0-a.oregon-postgres.render.com',
+        'PORT': '5432',
+        'OPTIONS': {
+            'sslmode': 'require',
+            'connect_timeout': 30,
+        }
+    }
 }
 
 
@@ -132,6 +150,9 @@ REST_FRAMEWORK = {
 'DEFAULT_PAGINATION_CLASS':'rest_framework.pagination.PageNumberPagination',
 'PAGE_SIZE': 5,
 'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+'DEFAULT_AUTHENTICATION_CLASSES': (
+'rest_framework_simplejwt.authentication.JWTAuthentication',
+),
 }
 
 
@@ -145,3 +166,13 @@ SPECTACULAR_SETTINGS = {
 
 CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = True
+
+
+SIMPLE_JWT = {
+"ACCESS_TOKEN_LIFETIME": timedelta(days=1),
+"REFRESH_TOKEN_LIFETIME": timedelta(days=7),
+"ROTATE_REFRESH_TOKENS": True,
+"BLACKLIST_AFTER_ROTATION": True,
+}
+
+AUTH_USER_MODEL = 'usuarios.CustomUser'
