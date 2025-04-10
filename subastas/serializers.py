@@ -10,10 +10,15 @@ class CategoriaSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 class SubastaSerializer(serializers.ModelSerializer):
+    usuario_nombre = serializers.SerializerMethodField()
+    
     class Meta:
         model = Subasta
         fields = '__all__'
         read_only_fields = ['estado', 'fecha_creacion']
+    
+    def get_usuario_nombre(self, obj):
+        return obj.usuario.username if obj.usuario else None
     
     def validate(self, data):
         # Validar que la fecha de cierre sea posterior a la fecha actual
@@ -54,6 +59,7 @@ class SubastaDetailSerializer(serializers.ModelSerializer):
     pujas = serializers.SerializerMethodField()
     categoria_nombre = serializers.SerializerMethodField()
     estado_actual = serializers.SerializerMethodField()
+    usuario_nombre = serializers.SerializerMethodField()
     
     class Meta:
         model = Subasta
@@ -72,12 +78,20 @@ class SubastaDetailSerializer(serializers.ModelSerializer):
         if obj.fecha_cierre <= timezone.now():
             return 'cerrada'
         return 'abierta'
+    
+    def get_usuario_nombre(self, obj):
+        return obj.usuario.username if obj.usuario else None
 
 class PujaSerializer(serializers.ModelSerializer):
+    pujador_nombre = serializers.SerializerMethodField()
+    
     class Meta:
         model = Puja
         fields = '__all__'
         read_only_fields = ['subasta', 'fecha_puja']
+    
+    def get_pujador_nombre(self, obj):
+        return obj.pujador.username if obj.pujador else None
     
     def validate(self, data):
         # Si estamos actualizando una puja existente
@@ -120,7 +134,11 @@ class PujaSerializer(serializers.ModelSerializer):
         
 class PujaDetailSerializer(serializers.ModelSerializer):
     subasta = SubastaSerializer(read_only=True)
+    pujador_nombre = serializers.SerializerMethodField()
     
     class Meta:
         model = Puja
         fields = '__all__'
+    
+    def get_pujador_nombre(self, obj):
+        return obj.pujador.username if obj.pujador else None
