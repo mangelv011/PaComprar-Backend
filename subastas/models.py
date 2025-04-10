@@ -109,4 +109,5 @@ class Puja(models.Model):
         ordering = ("-fecha_puja",)  # Ordenar por fecha de puja descendente
 
     def __str__(self):
+        # Actualizar para manejar pujador como objeto CustomUser
         return f"{self.pujador.username} - ${self.cantidad} - {self.subasta.titulo}"

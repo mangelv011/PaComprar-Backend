@@ -214,7 +214,8 @@ class PujaListCreate(generics.ListCreateAPIView):
                 {"cantidad": f"La puja debe ser mayor que el precio inicial ({subasta.precio_inicial})."}
             )
         
-        serializer.save(subasta=subasta, pujador=self.request.user.username)
+        # Pasar el objeto de usuario en lugar del nombre de usuario
+        serializer.save(subasta=subasta, pujador=self.request.user)
 
 class PujaRetrieveUpdateDestroy(generics.RetrieveUpdateDestroyAPIView):
     permission_classes = [IsPujaOwnerOrAdmin]
