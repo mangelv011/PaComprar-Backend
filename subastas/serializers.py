@@ -11,6 +11,7 @@ class CategoriaSerializer(serializers.ModelSerializer):
 
 class SubastaSerializer(serializers.ModelSerializer):
     usuario_nombre = serializers.SerializerMethodField()
+    precio_actual = serializers.SerializerMethodField()
     
     class Meta:
         model = Subasta
@@ -19,6 +20,12 @@ class SubastaSerializer(serializers.ModelSerializer):
     
     def get_usuario_nombre(self, obj):
         return obj.usuario.username if obj.usuario else None
+    
+    def get_precio_actual(self, obj):
+        # Obtener la puja más alta o el precio inicial si no hay pujas
+        puja_mas_alta = obj.pujas.aggregate(max_cantidad=Max('cantidad'))
+        max_cantidad = puja_mas_alta.get('max_cantidad')
+        return max_cantidad if max_cantidad else obj.precio_inicial
     
     def validate(self, data):
         # Validar que la fecha de cierre sea posterior a la fecha actual
@@ -60,6 +67,7 @@ class SubastaDetailSerializer(serializers.ModelSerializer):
     categoria_nombre = serializers.SerializerMethodField()
     estado_actual = serializers.SerializerMethodField()
     usuario_nombre = serializers.SerializerMethodField()
+    precio_actual = serializers.SerializerMethodField()
     
     class Meta:
         model = Subasta
@@ -81,6 +89,12 @@ class SubastaDetailSerializer(serializers.ModelSerializer):
     
     def get_usuario_nombre(self, obj):
         return obj.usuario.username if obj.usuario else None
+        
+    def get_precio_actual(self, obj):
+        # Obtener la puja más alta o el precio inicial si no hay pujas
+        puja_mas_alta = obj.pujas.aggregate(max_cantidad=Max('cantidad'))
+        max_cantidad = puja_mas_alta.get('max_cantidad')
+        return max_cantidad if max_cantidad else obj.precio_inicial
 
 class PujaSerializer(serializers.ModelSerializer):
     pujador_nombre = serializers.SerializerMethodField()
