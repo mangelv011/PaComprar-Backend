@@ -100,8 +100,14 @@ class ChangePasswordView(APIView):
             try:
                 validate_password(serializer.validated_data['new_password'], user)
             except ValidationError as e:
-                return Response({"new_password": e.messages},
-                status=status.HTTP_400_BAD_REQUEST)
+                # Procesar los mensajes de error de validación
+                error_messages = {}
+                # Si solo hay un error, e.messages será una lista con un solo elemento
+                if len(e.messages) == 1 and 'similar' in e.messages[0].lower():
+                    error_messages["new_password"] = "La contraseña es demasiado similar a tu nombre de usuario. Por favor usa una contraseña más segura."
+                else:
+                    error_messages["new_password"] = e.messages
+                return Response(error_messages, status=status.HTTP_400_BAD_REQUEST)
             user.set_password(serializer.validated_data['new_password'])
             user.save()
             return Response({"detail": "Password updated successfully."})
