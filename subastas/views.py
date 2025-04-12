@@ -29,6 +29,7 @@ class SubastaListCreate(generics.ListCreateAPIView):
     permission_classes = [IsAuthenticatedOrReadOnly]
     queryset = Subasta.objects.all()
     serializer_class = SubastaSerializer
+    pagination_class = None  # Desactiva la paginación para esta vista
 
     def get_queryset(self):
         queryset = Subasta.objects.all()
@@ -151,6 +152,7 @@ class CategoriaListCreate(generics.ListCreateAPIView):
     permission_classes = [IsAdminOrReadOnly]
     queryset = Categoria.objects.all()
     serializer_class = CategoriaSerializer
+    pagination_class = None  # Desactiva la paginación para las categorías
 
 class CategoriaRetrieve(generics.RetrieveAPIView):
     permission_classes = [IsAdminOrReadOnly]
@@ -168,6 +170,7 @@ class CategoriaUpdateDestroy(generics.RetrieveUpdateDestroyAPIView):
 class PujaListCreate(generics.ListCreateAPIView):
     permission_classes = [IsAuthenticatedOrReadOnly]
     serializer_class = PujaSerializer
+    pagination_class = None  # Desactiva la paginación para las pujas
     
     def get_queryset(self):
         id_subasta = self.kwargs.get('id_subasta')
