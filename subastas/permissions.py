@@ -35,7 +35,7 @@ class IsPujaOwnerOrSubastaOwnerOrAdmin(BasePermission):
             return True
         
         # Permitir si es el creador de la puja, el dueño de la subasta o administrador
-        return (obj.pujador == request.user.username or 
+        return (obj.pujador == request.user or 
                 obj.subasta.usuario == request.user or 
                 request.user.is_staff)
 
@@ -61,4 +61,4 @@ class IsPujaOwnerOrAdmin(BasePermission):
             return True
         
         # Permitir solo si es el creador de la puja o administrador
-        return obj.pujador == request.user.username or request.user.is_staff
+        return obj.pujador == request.user or request.user.is_staff
