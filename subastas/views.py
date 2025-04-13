@@ -61,7 +61,7 @@ class SubastaListCreate(generics.ListCreateAPIView):
         precio_min = params.get('precio_min', None)
         precio_max = params.get('precio_max', None)
         
-        # Validación de precio mínimo
+        # Validación de precio mínimo y máximo
         if precio_min:
             try:
                 precio_min = Decimal(precio_min)
@@ -69,13 +69,11 @@ class SubastaListCreate(generics.ListCreateAPIView):
                     raise ValidationError(
                         {"precio_min": "El precio mínimo debe ser mayor que 0."}
                     )
-                queryset = queryset.filter(precio_inicial__gte=precio_min)
             except (ValueError, TypeError):
                 raise ValidationError(
                     {"precio_min": "El precio mínimo debe ser un número válido."}
                 )
         
-        # Validación de precio máximo
         if precio_max:
             try:
                 precio_max = Decimal(precio_max)
@@ -83,7 +81,6 @@ class SubastaListCreate(generics.ListCreateAPIView):
                     raise ValidationError(
                         {"precio_max": "El precio máximo debe ser mayor que 0."}
                     )
-                queryset = queryset.filter(precio_inicial__lte=precio_max)
             except (ValueError, TypeError):
                 raise ValidationError(
                     {"precio_max": "El precio máximo debe ser un número válido."}
@@ -94,6 +91,29 @@ class SubastaListCreate(generics.ListCreateAPIView):
             raise ValidationError(
                 {"price_range": "El precio máximo debe ser mayor que el precio mínimo."}
             )
+        
+        # Si hay filtros de precio, filtramos por el precio actual (puja más alta o precio inicial)
+        if precio_min or precio_max:
+            # Obtenemos todas las subastas con sus pujas más altas
+            subastas_ids = []
+            
+            for subasta in queryset:
+                # Obtenemos la puja más alta para esta subasta
+                puja_mas_alta = Puja.objects.filter(subasta=subasta).aggregate(Max('cantidad'))['cantidad__max']
+                precio_actual = puja_mas_alta if puja_mas_alta else subasta.precio_inicial
+                
+                # Aplicamos los filtros de precio
+                cumple_filtro = True
+                if precio_min and precio_actual < precio_min:
+                    cumple_filtro = False
+                if precio_max and precio_actual > precio_max:
+                    cumple_filtro = False
+                    
+                if cumple_filtro:
+                    subastas_ids.append(subasta.id)
+            
+            # Filtramos las subastas utilizando los IDs que cumplen las condiciones
+            queryset = queryset.filter(id__in=subastas_ids)
         
         return queryset
     
