@@ -1,22 +1,51 @@
 from rest_framework import serializers
-from .models import Categoria, Subasta, Puja
+from .models import Categoria, Subasta, Puja, Rating, Comentario
 from django.utils import timezone
 from datetime import timedelta
-from django.db.models import Max
+from django.db.models import Max, Avg
 
 class CategoriaSerializer(serializers.ModelSerializer):
     class Meta:
         model = Categoria
         fields = '__all__'
 
+class RatingSerializer(serializers.ModelSerializer):
+    usuario_nombre = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Rating
+        fields = ['id', 'valor', 'usuario', 'usuario_nombre', 'subasta', 'fecha_creacion', 'fecha_actualizacion']
+        read_only_fields = ['usuario', 'fecha_creacion', 'fecha_actualizacion']
+    
+    def get_usuario_nombre(self, obj):
+        return obj.usuario.username
+    
+    def validate_valor(self, value):
+        if value < 1 or value > 5:
+            raise serializers.ValidationError("La valoración debe estar entre 1 y 5")
+        return value
+
+class ComentarioSerializer(serializers.ModelSerializer):
+    usuario_nombre = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Comentario
+        fields = ['id', 'titulo', 'texto', 'fecha_creacion', 'fecha_actualizacion', 
+                 'usuario', 'usuario_nombre', 'subasta']
+        read_only_fields = ['usuario', 'fecha_creacion', 'fecha_actualizacion']
+    
+    def get_usuario_nombre(self, obj):
+        return obj.usuario.username
+
 class SubastaSerializer(serializers.ModelSerializer):
     usuario_nombre = serializers.SerializerMethodField()
     precio_actual = serializers.SerializerMethodField()
+    valoracion_media = serializers.SerializerMethodField()
     
     class Meta:
         model = Subasta
         fields = '__all__'
-        read_only_fields = ['estado', 'fecha_creacion']
+        read_only_fields = ['estado', 'fecha_creacion', 'valoracion_media']
     
     def get_usuario_nombre(self, obj):
         return obj.usuario.username if obj.usuario else None
@@ -26,6 +55,10 @@ class SubastaSerializer(serializers.ModelSerializer):
         puja_mas_alta = obj.pujas.aggregate(max_cantidad=Max('cantidad'))
         max_cantidad = puja_mas_alta.get('max_cantidad')
         return max_cantidad if max_cantidad else obj.precio_inicial
+    
+    def get_valoracion_media(self, obj):
+        """Devuelve la valoración media de la subasta"""
+        return obj.get_valoracion_media()
     
     def validate(self, data):
         # Validar que la fecha de cierre sea posterior a la fecha actual
@@ -68,6 +101,9 @@ class SubastaDetailSerializer(serializers.ModelSerializer):
     estado_actual = serializers.SerializerMethodField()
     usuario_nombre = serializers.SerializerMethodField()
     precio_actual = serializers.SerializerMethodField()
+    valoracion_media = serializers.SerializerMethodField()
+    ratings = serializers.SerializerMethodField()
+    comentarios = serializers.SerializerMethodField()
     
     class Meta:
         model = Subasta
@@ -95,6 +131,18 @@ class SubastaDetailSerializer(serializers.ModelSerializer):
         puja_mas_alta = obj.pujas.aggregate(max_cantidad=Max('cantidad'))
         max_cantidad = puja_mas_alta.get('max_cantidad')
         return max_cantidad if max_cantidad else obj.precio_inicial
+    
+    def get_valoracion_media(self, obj):
+        """Devuelve la valoración media de la subasta"""
+        return obj.get_valoracion_media()
+    
+    def get_ratings(self, obj):
+        """Devuelve las valoraciones individuales de la subasta"""
+        return RatingSerializer(obj.ratings.all(), many=True).data
+    
+    def get_comentarios(self, obj):
+        """Devuelve los comentarios de la subasta"""
+        return ComentarioSerializer(obj.comentarios.all(), many=True).data
 
 class PujaSerializer(serializers.ModelSerializer):
     pujador_nombre = serializers.SerializerMethodField()

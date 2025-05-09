@@ -1,6 +1,6 @@
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
-from django.db.models import Q, Max
+from django.db.models import Q, Max, Avg
 from rest_framework import status, generics
 from rest_framework.response import Response
 from rest_framework.exceptions import ValidationError
@@ -9,19 +9,22 @@ from datetime import timedelta
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
 
-from .models import Categoria, Subasta, Puja
+from .models import Categoria, Subasta, Puja, Rating, Comentario
 from .serializers import (
     CategoriaSerializer, 
     SubastaSerializer, 
     SubastaDetailSerializer,
     PujaSerializer,
-    PujaDetailSerializer
+    PujaDetailSerializer,
+    RatingSerializer,
+    ComentarioSerializer
 )
 from .permissions import (
     IsOwnerOrAdmin,
     IsAdminOrReadOnly,
     IsPujaOwnerOrAdmin,
-    IsAuthenticatedOrReadOnly
+    IsAuthenticatedOrReadOnly,
+    IsComentarioOwnerOrAdmin
 )
 
 # SUBASTAS VIEWS
@@ -284,6 +287,147 @@ class PujaRetrieveUpdateDestroy(generics.RetrieveUpdateDestroyAPIView):
         
         instance.delete()
 
+# RATINGS VIEWS
+class RatingListCreate(generics.ListCreateAPIView):
+    """Vista para listar valoraciones de una subasta y crear nuevas valoraciones."""
+    permission_classes = [IsAuthenticated]
+    serializer_class = RatingSerializer
+    
+    def get_queryset(self):
+        id_subasta = self.kwargs.get('id_subasta')
+        subasta = get_object_or_404(Subasta, id=id_subasta)
+        return Rating.objects.filter(subasta=subasta)
+    
+    def perform_create(self, serializer):
+        id_subasta = self.kwargs.get('id_subasta')
+        subasta = get_object_or_404(Subasta, id=id_subasta)
+        
+        # Verificar si el usuario ya ha valorado esta subasta
+        existing_rating = Rating.objects.filter(
+            subasta=subasta,
+            usuario=self.request.user
+        ).first()
+        
+        if existing_rating:
+            raise ValidationError(
+                {"error": "Ya has valorado esta subasta. Usa PUT para actualizar tu valoración."}
+            )
+        
+        serializer.save(subasta=subasta, usuario=self.request.user)
+        
+        # Actualizar la valoración media en la subasta
+        valoracion_media = subasta.get_valoracion_media()
+        Subasta.objects.filter(id=subasta.id).update(valoracion=valoracion_media)
+
+class RatingDetailView(generics.RetrieveUpdateDestroyAPIView):
+    """Vista para recuperar, actualizar o eliminar una valoración específica."""
+    permission_classes = [IsAuthenticated]
+    serializer_class = RatingSerializer
+    lookup_url_kwarg = 'id_rating'
+    
+    def get_queryset(self):
+        id_subasta = self.kwargs.get('id_subasta')
+        subasta = get_object_or_404(Subasta, id=id_subasta)
+        return Rating.objects.filter(subasta=subasta)
+    
+    def perform_update(self, serializer):
+        serializer.save()
+        
+        # Actualizar la valoración media en la subasta
+        subasta = serializer.instance.subasta
+        valoracion_media = subasta.get_valoracion_media()
+        Subasta.objects.filter(id=subasta.id).update(valoracion=valoracion_media)
+    
+    def perform_destroy(self, instance):
+        subasta = instance.subasta
+        
+        # Verificar que el usuario es el dueño de la valoración o un admin
+        if instance.usuario != self.request.user and not self.request.user.is_staff:
+            raise ValidationError(
+                {"error": "No tienes permisos para eliminar esta valoración."}
+            )
+        
+        instance.delete()
+        
+        # Actualizar la valoración media en la subasta
+        valoracion_media = subasta.get_valoracion_media()
+        Subasta.objects.filter(id=subasta.id).update(valoracion=valoracion_media)
+
+class UserRatingView(APIView):
+    """Vista para obtener o eliminar la valoración del usuario autenticado para una subasta específica."""
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request, id_subasta):
+        subasta = get_object_or_404(Subasta, id=id_subasta)
+        
+        try:
+            rating = Rating.objects.get(subasta=subasta, usuario=request.user)
+            serializer = RatingSerializer(rating)
+            return Response(serializer.data)
+        except Rating.DoesNotExist:
+            return Response(
+                {"detail": "No has valorado esta subasta aún."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+    
+    def delete(self, request, id_subasta):
+        subasta = get_object_or_404(Subasta, id=id_subasta)
+        
+        try:
+            rating = Rating.objects.get(subasta=subasta, usuario=request.user)
+            rating.delete()
+            
+            # Actualizar la valoración media en la subasta
+            valoracion_media = subasta.get_valoracion_media()
+            Subasta.objects.filter(id=subasta.id).update(valoracion=valoracion_media)
+            
+            return Response(
+                {"detail": "Tu valoración ha sido eliminada."},
+                status=status.HTTP_204_NO_CONTENT
+            )
+        except Rating.DoesNotExist:
+            return Response(
+                {"detail": "No tienes una valoración para esta subasta."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+# COMENTARIOS VIEWS
+class ComentarioListCreate(generics.ListCreateAPIView):
+    """Vista para listar comentarios de una subasta y crear nuevos comentarios."""
+    serializer_class = ComentarioSerializer
+    permission_classes = [IsAuthenticatedOrReadOnly]
+    
+    def get_queryset(self):
+        id_subasta = self.kwargs.get('id_subasta')
+        subasta = get_object_or_404(Subasta, id=id_subasta)
+        return Comentario.objects.filter(subasta=subasta)
+    
+    def perform_create(self, serializer):
+        id_subasta = self.kwargs.get('id_subasta')
+        subasta = get_object_or_404(Subasta, id=id_subasta)
+        serializer.save(subasta=subasta, usuario=self.request.user)
+
+class ComentarioDetailView(generics.RetrieveUpdateDestroyAPIView):
+    """Vista para recuperar, actualizar o eliminar un comentario específico."""
+    serializer_class = ComentarioSerializer
+    permission_classes = [IsComentarioOwnerOrAdmin]
+    lookup_url_kwarg = 'id_comentario'
+    
+    def get_queryset(self):
+        id_subasta = self.kwargs.get('id_subasta')
+        subasta = get_object_or_404(Subasta, id=id_subasta)
+        return Comentario.objects.filter(subasta=subasta)
+
+class UserComentarioListView(APIView):
+    """Vista para obtener todos los comentarios realizados por el usuario autenticado."""
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request, *args, **kwargs):
+        # Obtener todos los comentarios del usuario autenticado
+        user_comentarios = Comentario.objects.filter(usuario=request.user)
+        serializer = ComentarioSerializer(user_comentarios, many=True)
+        return Response(serializer.data)
+
 # VISTAS PARA USUARIO
 class UserSubastaListView(APIView):
     permission_classes = [IsAuthenticated]
@@ -301,4 +445,14 @@ class UserPujaListView(APIView):
         # Obtener las pujas realizadas por el usuario autenticado
         user_pujas = Puja.objects.filter(pujador=request.user)
         serializer = PujaSerializer(user_pujas, many=True)
+        return Response(serializer.data)
+
+class UserRatingListView(APIView):
+    """Vista para obtener todas las valoraciones realizadas por el usuario autenticado."""
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request, *args, **kwargs):
+        # Obtener todas las valoraciones del usuario autenticado
+        user_ratings = Rating.objects.filter(usuario=request.user)
+        serializer = RatingSerializer(user_ratings, many=True)
         return Response(serializer.data)

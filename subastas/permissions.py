@@ -62,3 +62,15 @@ class IsPujaOwnerOrAdmin(BasePermission):
         
         # Permitir solo si es el creador de la puja o administrador
         return obj.pujador == request.user or request.user.is_staff
+
+class IsComentarioOwnerOrAdmin(BasePermission):
+    """
+    Permite el acceso solo si el usuario es el creador del comentario o es un administrador.
+    """
+    def has_object_permission(self, request, view, obj):
+        # Siempre permitir GET, HEAD, OPTIONS
+        if request.method in SAFE_METHODS:
+            return True
+        
+        # Verificar si el usuario es el creador del comentario o un administrador
+        return obj.usuario == request.user or request.user.is_staff
