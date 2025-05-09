@@ -410,6 +410,14 @@ class ComentarioListCreate(generics.ListCreateAPIView):
         subasta = get_object_or_404(Subasta, id=id_subasta)
         return Comentario.objects.filter(subasta=subasta)
     
+    def get_serializer_context(self):
+        """Agregar la subasta al contexto del serializador."""
+        context = super().get_serializer_context()
+        id_subasta = self.kwargs.get('id_subasta')
+        subasta = get_object_or_404(Subasta, id=id_subasta)
+        context['subasta'] = subasta
+        return context
+    
     def perform_create(self, serializer):
         id_subasta = self.kwargs.get('id_subasta')
         subasta = get_object_or_404(Subasta, id=id_subasta)

@@ -38,10 +38,16 @@ class ComentarioSerializer(serializers.ModelSerializer):
         model = Comentario
         fields = ['id', 'titulo', 'texto', 'fecha_creacion', 'fecha_actualizacion', 
                  'usuario', 'usuario_nombre', 'subasta']
-        read_only_fields = ['usuario', 'fecha_creacion', 'fecha_actualizacion']
+        read_only_fields = ['usuario', 'fecha_creacion', 'fecha_actualizacion', 'subasta']
     
     def get_usuario_nombre(self, obj):
         return obj.usuario.username
+        
+    def create(self, validated_data):
+        # Si la subasta está en el contexto, usarla
+        if 'subasta' not in validated_data and 'subasta' in self.context:
+            validated_data['subasta'] = self.context['subasta']
+        return super().create(validated_data)
 
 class SubastaSerializer(serializers.ModelSerializer):
     usuario_nombre = serializers.SerializerMethodField()
