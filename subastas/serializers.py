@@ -15,7 +15,7 @@ class RatingSerializer(serializers.ModelSerializer):
     class Meta:
         model = Rating
         fields = ['id', 'valor', 'usuario', 'usuario_nombre', 'subasta', 'fecha_creacion', 'fecha_actualizacion']
-        read_only_fields = ['usuario', 'fecha_creacion', 'fecha_actualizacion']
+        read_only_fields = ['usuario', 'fecha_creacion', 'fecha_actualizacion', 'subasta']
     
     def get_usuario_nombre(self, obj):
         return obj.usuario.username
@@ -24,6 +24,12 @@ class RatingSerializer(serializers.ModelSerializer):
         if value < 1 or value > 5:
             raise serializers.ValidationError("La valoración debe estar entre 1 y 5")
         return value
+    
+    def create(self, validated_data):
+        # Si la subasta está en el contexto, usarla
+        if 'subasta' not in validated_data and 'subasta' in self.context:
+            validated_data['subasta'] = self.context['subasta']
+        return super().create(validated_data)
 
 class ComentarioSerializer(serializers.ModelSerializer):
     usuario_nombre = serializers.SerializerMethodField()
