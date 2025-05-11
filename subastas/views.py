@@ -404,6 +404,7 @@ class ComentarioListCreate(generics.ListCreateAPIView):
     """Vista para listar comentarios de una subasta y crear nuevos comentarios."""
     serializer_class = ComentarioSerializer
     permission_classes = [IsAuthenticatedOrReadOnly]
+    pagination_class = None  # Desactiva la paginación para los comentarios
     
     def get_queryset(self):
         id_subasta = self.kwargs.get('id_subasta')
