@@ -1,0 +1,420 @@
+# TUTORIAL: IMPLEMENTACIÓN DE FILTROS EN LA API DE SUBASTAS
+
+Este tutorial explica cómo implementar filtros para diferentes campos en la API de subastas del proyecto PaComprar.
+
+## Estructura básica para añadir un nuevo filtro
+
+Para añadir un nuevo filtro en la vista `SubastaListCreate` sigue este patrón:
+
+1. Obtén el parámetro de consulta desde `request.query_params`
+2. Valida el parámetro si es necesario
+3. Aplica el filtro al queryset usando el operador adecuado
+
+## Ejemplos de filtros para diferentes tipos de campos
+
+### 1. Filtro por campo de texto (exacto o parcial)
+
+```python
+# Filtro exacto (ejemplo: estado)
+estado = params.get('estado', None)
+if estado:
+    queryset = queryset.filter(estado=estado)
+
+# Filtro parcial con case insensitive (ejemplo: marca)
+marca = params.get('marca', None)
+if marca:
+    queryset = queryset.filter(marca__icontains=marca)
+```
+
+### 2. Filtro por campo numérico (con rangos)
+
+```python
+# Filtro de rango (ejemplo: stock)
+stock_min = params.get('stock_min', None)
+stock_max = params.get('stock_max', None)
+
+if stock_min:
+    try:
+        stock_min = int(stock_min)
+        queryset = queryset.filter(stock__gte=stock_min)
+    except (ValueError, TypeError):
+        raise ValidationError({"stock_min": "El stock mínimo debe ser un número entero válido."})
+        
+if stock_max:
+    try:
+        stock_max = int(stock_max)
+        queryset = queryset.filter(stock__lte=stock_max)
+    except (ValueError, TypeError):
+        raise ValidationError({"stock_max": "El stock máximo debe ser un número entero válido."})
+```
+
+### 3. Filtro por fecha
+
+```python
+# Filtro por fecha (ejemplo: fecha_creacion)
+fecha_desde = params.get('fecha_desde', None)
+fecha_hasta = params.get('fecha_hasta', None)
+
+if fecha_desde:
+    try:
+        fecha_desde = timezone.datetime.strptime(fecha_desde, "%Y-%m-%d").date()
+        queryset = queryset.filter(fecha_creacion__gte=fecha_desde)
+    except (ValueError, TypeError):
+        raise ValidationError({"fecha_desde": "Formato de fecha inválido. Use YYYY-MM-DD."})
+        
+if fecha_hasta:
+    try:
+        fecha_hasta = timezone.datetime.strptime(fecha_hasta, "%Y-%m-%d").date()
+        # Añadir un día para incluir todo el día final
+        fecha_hasta = fecha_hasta + timezone.timedelta(days=1)
+        queryset = queryset.filter(fecha_creacion__lt=fecha_hasta)
+    except (ValueError, TypeError):
+        raise ValidationError({"fecha_hasta": "Formato de fecha inválido. Use YYYY-MM-DD."})
+```
+
+### 4. Filtro por relación (ForeignKey)
+
+```python
+# Filtro por usuario por ID (ForeignKey)
+usuario_id = params.get('usuario_id', None)
+if usuario_id:
+    queryset = queryset.filter(usuario_id=usuario_id)
+
+# Filtro por nombre de usuario (ForeignKey + campo relacionado)
+username = params.get('username', None)
+if username:
+    queryset = queryset.filter(usuario__username=username)  # Nota: doble guion bajo para acceder a campos relacionados
+```
+
+### 5. Filtro por valoración
+
+```python
+# Filtro por valoración (campo decimal)
+rating_min = params.get('rating_min', None)
+rating_max = params.get('rating_max', None)
+
+if rating_min:
+    try:
+        rating_min = Decimal(rating_min)
+        queryset = queryset.filter(valoracion__gte=rating_min)
+    except (ValueError, TypeError):
+        raise ValidationError({"rating_min": "La valoración mínima debe ser un número válido."})
+        
+if rating_max:
+    try:
+        rating_max = Decimal(rating_max)
+        queryset = queryset.filter(valoracion__lte=rating_max)
+    except (ValueError, TypeError):
+        raise ValidationError({"rating_max": "La valoración máxima debe ser un número válido."})
+```
+
+### 6. Filtros combinados con operadores lógicos (AND, OR)
+
+```python
+# Filtro OR (ejemplo: buscar en título O descripción O marca)
+search = params.get('search', None)
+if search and len(search) >= 3:
+    queryset = queryset.filter(
+        Q(titulo__icontains=search) | 
+        Q(descripcion__icontains=search) | 
+        Q(marca__icontains=search)
+    )
+
+# Filtro AND (se aplica automáticamente al encadenar filtros)
+# Ejemplo: subastas con stock > 5 Y precio_inicial < 1000
+if params.get('stock_min'):
+    queryset = queryset.filter(stock__gt=5)
+if params.get('precio_max'):
+    queryset = queryset.filter(precio_inicial__lt=1000)
+```
+
+### 7. Filtro por estado de subasta (abierta/cerrada)
+
+```python
+# Filtrar solo subastas abiertas/cerradas
+estado = params.get('estado', None)
+if estado:
+    if estado not in ['abierta', 'cerrada']:
+        raise ValidationError({"estado": "El estado debe ser 'abierta' o 'cerrada'."})
+    queryset = queryset.filter(estado=estado)
+```
+
+### 8. Filtrar por existencia de pujas
+
+```python
+# Filtrar subastas con o sin pujas
+tiene_pujas = params.get('tiene_pujas', None)
+if tiene_pujas is not None:
+    try:
+        tiene_pujas = bool(int(tiene_pujas))  # Convertir a booleano (0 o 1)
+        if tiene_pujas:
+            # Subastas que tienen al menos una puja
+            queryset = queryset.filter(pujas__isnull=False).distinct()
+        else:
+            # Subastas sin pujas
+            queryset = queryset.filter(pujas__isnull=True)
+    except (ValueError, TypeError):
+        raise ValidationError({"tiene_pujas": "Valor inválido. Use 0 (sin pujas) o 1 (con pujas)."})
+```
+
+### 9. Ordenar resultados
+
+```python
+# Ordenar resultados
+orden = params.get('orden', None)
+if orden:
+    # Permitir ordenar por diferentes campos
+    if orden == 'precio_asc':
+        queryset = queryset.order_by('precio_inicial')
+    elif orden == 'precio_desc':
+        queryset = queryset.order_by('-precio_inicial')
+    elif orden == 'fecha_asc':
+        queryset = queryset.order_by('fecha_creacion')
+    elif orden == 'fecha_desc':
+        queryset = queryset.order_by('-fecha_creacion')
+    elif orden == 'valoracion':
+        queryset = queryset.order_by('-valoracion')
+    else:
+        raise ValidationError({"orden": "Valor de ordenación no válido."})
+```
+
+### 10. Filtros múltiples anidados (varios niveles de relación)
+
+```python
+# Filtrar subastas de usuarios que tienen determinadas características
+# Por ejemplo, buscar subastas de usuarios con un correo específico
+email = params.get('email_usuario', None)
+if email:
+    queryset = queryset.filter(usuario__email=email)
+
+# Filtrar subastas que tienen pujas de un usuario específico
+pujador_id = params.get('pujador_id', None)
+if pujador_id:
+    queryset = queryset.filter(pujas__pujador_id=pujador_id).distinct()
+
+# Filtrar subastas con valoraciones altas (>=4) hechas por un usuario específico
+usuario_valorador = params.get('usuario_valorador', None)
+if usuario_valorador:
+    queryset = queryset.filter(
+        rating__usuario__username=usuario_valorador,
+        rating__valor__gte=4
+    ).distinct()
+```
+
+### 11. Búsqueda por texto avanzada (múltiples campos con ponderación)
+
+```python
+# Para este caso, usar las capacidades de búsqueda de texto de Django
+from django.contrib.postgres.search import SearchVector, SearchQuery, SearchRank
+
+# Ejemplo: búsqueda de texto con ponderación (requiere PostgreSQL)
+busqueda = params.get('busqueda', None)
+if busqueda:
+    # Crear vectores de búsqueda con diferentes pesos
+    vector = (
+        SearchVector('titulo', weight='A') +  # Mayor peso para coincidencias en el título
+        SearchVector('descripcion', weight='B') +  # Peso medio para coincidencias en descripción
+        SearchVector('marca', weight='C')  # Menor peso para coincidencias en marca
+    )
+    query = SearchQuery(busqueda)
+    # Aplicar búsqueda y ordenar por relevancia
+    queryset = queryset.annotate(
+        rank=SearchRank(vector, query)
+    ).filter(rank__gt=0).order_by('-rank')
+```
+
+## Operadores comunes para filtros en Django
+
+- `__exact`: coincidencia exacta
+- `__iexact`: coincidencia exacta (insensible a mayúsculas/minúsculas)
+- `__contains`: contiene la cadena
+- `__icontains`: contiene la cadena (insensible a mayúsculas/minúsculas)
+- `__gt`: mayor que
+- `__gte`: mayor o igual que
+- `__lt`: menor que
+- `__lte`: menor o igual que
+- `__startswith`: comienza con
+- `__istartswith`: comienza con (insensible a mayúsculas/minúsculas)
+- `__endswith`: termina con
+- `__iendswith`: termina con (insensible a mayúsculas/minúsculas)
+- `__range`: dentro de un rango (e.g., `field__range=(1, 10)`)
+- `__in`: en una lista (e.g., `field__in=[1, 3, 5]`)
+- `__isnull`: es nulo o no es nulo (e.g., `field__isnull=True`)
+- `__year`, `__month`, `__day`, `__week`, `__week_day`, `__quarter`: para campos de fecha/hora
+- `__regex`, `__iregex`: coincidencia de expresión regular (con y sin sensibilidad a mayúsculas/minúsculas)
+
+## Ejemplos de filtros avanzados adicionales
+
+### 1. Filtrado por múltiples valores con OR lógico
+
+```python
+# Filtrar subastas que pertenecen a cualquiera de varias categorías
+categorias_ids = params.get('categorias', None)
+if categorias_ids:
+    try:
+        # Convertir string separado por comas a lista de IDs
+        categorias_lista = [int(c_id) for c_id in categorias_ids.split(',')]
+        queryset = queryset.filter(categoria_id__in=categorias_lista)
+    except (ValueError, TypeError):
+        raise ValidationError({"categorias": "Formato inválido. Use IDs separados por comas (ej: 1,3,5)"})
+```
+
+### 2. Exclusión de resultados
+
+```python
+# Excluir subastas cerradas
+excluir_cerradas = params.get('excluir_cerradas', None)
+if excluir_cerradas and excluir_cerradas.lower() in ['true', '1', 'yes']:
+    queryset = queryset.exclude(estado='cerrada')
+
+# Excluir subastas sin imagen
+mostrar_solo_con_imagen = params.get('con_imagen', None)
+if mostrar_solo_con_imagen and mostrar_solo_con_imagen.lower() in ['true', '1', 'yes']:
+    queryset = queryset.exclude(imagen='').exclude(imagen__isnull=True)
+```
+
+### 3. Filtros con anotaciones y agregaciones
+
+```python
+from django.db.models import Count, Avg, F, Q
+
+# Filtrar subastas con más de N pujas
+min_pujas = params.get('min_pujas', None)
+if min_pujas:
+    try:
+        num_pujas = int(min_pujas)
+        queryset = queryset.annotate(num_pujas=Count('pujas')).filter(num_pujas__gte=num_pujas)
+    except (ValueError, TypeError):
+        raise ValidationError({"min_pujas": "Debe ser un número entero válido."})
+
+# Filtrar subastas cuyo precio inicial está por debajo de su valoración media
+mostrar_ofertas = params.get('ofertas', None)
+if mostrar_ofertas and mostrar_ofertas.lower() in ['true', '1', 'yes']:
+    queryset = queryset.filter(precio_inicial__lt=F('valoracion') * 20)  # Ejemplo: considerando cada punto de valoración como 20€
+```
+
+## Actualización de la documentación
+
+No olvides actualizar el docstring de la clase `SubastaListCreate` para documentar los nuevos parámetros de filtrado:
+
+```python
+class SubastaListCreate(generics.ListCreateAPIView):
+    """
+    Vista para listar todas las subastas y crear nuevas.
+    
+    GET: Obtiene lista de subastas con posibilidad de filtrado por:    - search: Búsqueda por texto en título o descripción (mínimo 3 caracteres)
+    - categoria: Filtrar por ID de categoría
+    - precio_min / precio_max: Filtrar por rango de precios
+    - marca: Filtrar por marca del producto
+    - rating_min / rating_max: Filtrar por rango de valoración
+    - estado: Filtrar por estado ('abierta' o 'cerrada')
+    - fecha_desde / fecha_hasta: Filtrar por rango de fechas de creación
+    - stock_min / stock_max: Filtrar por rango de stock disponible
+    - usuario_id: Filtrar por ID del usuario propietario
+    - username: Filtrar por nombre de usuario del propietario
+    - tiene_pujas: Filtrar subastas con o sin pujas (1 o 0)
+    - orden: Ordenar resultados ('precio_asc', 'precio_desc', 'fecha_asc', 'fecha_desc', 'valoracion')
+    - categorias: Filtrar por múltiples categorías (IDs separados por comas)
+    - excluir_cerradas: Excluir subastas cerradas (true/false)
+    - con_imagen: Mostrar solo subastas con imagen (true/false)
+    - min_pujas: Filtrar por número mínimo de pujas
+    - ofertas: Mostrar solo ofertas (true/false)
+    - pujador_id: Filtrar subastas con pujas de un usuario específico
+    
+    POST: Crea una nueva subasta (requiere autenticación)
+    """
+    # ...resto de la clase...
+```
+
+## Consideraciones para implementar filtros más complejos
+
+- Para filtros que involucran múltiples tablas, considera usar `prefetch_related` o `select_related` para optimizar consultas
+- Si los filtros se vuelven muy complejos, considera implementar un Django Filter Backend
+- Para campos que necesitan procesamiento adicional (como conversión de fechas o cálculos), maneja siempre las excepciones adecuadamente
+- Considera limitar el número de resultados o implementar paginación si los conjuntos de datos pueden ser grandes
+
+## Errores comunes y cómo solucionarlos
+
+### 1. Error al filtrar por campos de modelos relacionados
+
+**Problema**: Intentar filtrar directamente por un campo que pertenece a un modelo relacionado.
+```python
+# INCORRECTO
+queryset = queryset.filter(username=username)  # Error: username no es un campo del modelo Subasta
+```
+
+**Solución**: Usar doble guion bajo para acceder a campos de modelos relacionados.
+```python
+# CORRECTO
+queryset = queryset.filter(usuario__username=username)  # usuario es la FK, username es el campo en el modelo relacionado
+```
+
+### 2. Múltiples consultas a la base de datos
+
+**Problema**: Realizar múltiples consultas independientes para filtrar un queryset.
+```python
+# INEFICIENTE
+# Primero filtramos por categoría
+queryset = Subasta.objects.filter(categoria_id=1)
+# Luego filtramos de nuevo por estado (nueva consulta a la BD)
+queryset = queryset.filter(estado='abierta')
+# Y después por precio (otra consulta a la BD)
+queryset = queryset.filter(precio_inicial__gt=100)
+```
+
+**Solución**: Encadenar los filtros en una sola operación, que será optimizada por Django.
+```python
+# EFICIENTE
+queryset = Subasta.objects.filter(
+    categoria_id=1,
+    estado='abierta', 
+    precio_inicial__gt=100
+)
+```
+
+### 3. Filtros dinámicos usando diccionarios
+
+Si necesitas construir filtros dinámicamente basados en parámetros de la petición:
+
+```python
+# Construir un diccionario de filtros dinámicamente
+filtros = {}
+if categoria:
+    filtros['categoria_id'] = categoria
+if estado:
+    filtros['estado'] = estado
+if precio_min:
+    filtros['precio_inicial__gte'] = precio_min
+
+# Aplicar todos los filtros de una vez
+queryset = Subasta.objects.filter(**filtros)
+```
+
+## Implementación de backend de filtrado personalizado
+
+Para APIs más complejas, considera usar `django-filter`:
+
+```python
+# En filters.py
+import django_filters
+from .models import Subasta
+
+class SubastaFilter(django_filters.FilterSet):
+    titulo = django_filters.CharFilter(lookup_expr='icontains')
+    precio_min = django_filters.NumberFilter(field_name='precio_inicial', lookup_expr='gte')
+    precio_max = django_filters.NumberFilter(field_name='precio_inicial', lookup_expr='lte')
+    username = django_filters.CharFilter(field_name='usuario__username', lookup_expr='exact')
+    
+    class Meta:
+        model = Subasta
+        fields = ['titulo', 'precio_min', 'precio_max', 'estado', 'categoria', 'username']
+
+# En views.py
+from django_filters.rest_framework import DjangoFilterBackend
+
+class SubastaListCreate(generics.ListCreateAPIView):
+    queryset = Subasta.objects.all()
+    serializer_class = SubastaSerializer
+    filter_backends = [DjangoFilterBackend]
+    filterset_class = SubastaFilter
+```

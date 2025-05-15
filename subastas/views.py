@@ -28,6 +28,7 @@ class SubastaListCreate(generics.ListCreateAPIView):
     - search: Búsqueda por texto en título o descripción (mínimo 3 caracteres)
     - categoria: Filtrar por ID de categoría
     - precio_min / precio_max: Filtrar por rango de precios
+    - marca: Filtrar por marca del producto
     
     POST: Crea una nueva subasta (requiere autenticación)
     """
@@ -49,7 +50,7 @@ class SubastaListCreate(generics.ListCreateAPIView):
         if search and len(search) < 3:
             raise ValidationError({"search": "La búsqueda debe tener al menos 3 caracteres."})
         if search:
-            queryset = queryset.filter(Q(titulo__icontains=search) | Q(descripcion__icontains=search))
+            queryset = queryset.filter(Q(titulo__icontains=search) | Q(descripcion__icontains=search) |  Q(marca__icontains=search))
         
         # Filtrado por categoría
         categoria = params.get('categoria', None)
@@ -57,6 +58,33 @@ class SubastaListCreate(generics.ListCreateAPIView):
             if not Categoria.objects.filter(id=categoria).exists():
                 raise ValidationError({"categoria": "Esta categoría no existe."})
             queryset = queryset.filter(categoria=categoria)
+
+
+        # Filtrado por estado
+        estado = params.get('estado', None)
+        if estado:
+            queryset = queryset.filter(estado=estado)
+
+        # Filtrado por nombre de usuario
+        username = params.get('username', None)
+        if username:
+            queryset = queryset.filter(usuario__username=username)
+
+
+        # Filtrado por rating minimo
+        rating_min = params.get('rating_min', None)
+        if rating_min:
+            try:
+                rating_min = Decimal(rating_min)
+                queryset = queryset.filter(valoracion__gt=rating_min)
+            except (ValueError, TypeError):
+                raise ValidationError({"rating_min": "La valoración mínima debe ser un número válido."})
+            
+        '''__lt: menor que (less than)
+        __gte: mayor o igual que (greater than or equal)
+        __lte: menor o igual que (less than or equal)
+        __exact: igualdad exacta'''
+
         
         # Filtrado por rango de precios
         precio_min = params.get('precio_min', None)
