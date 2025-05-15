@@ -1,199 +1,142 @@
 from django.db import models
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.utils import timezone
-from datetime import timedelta
 from usuarios.models import CustomUser
 from django.db.models import Avg
 
 class Categoria(models.Model):
-    nombre = models.CharField(max_length=50, blank=False, unique=True)
+    """
+    Modelo que representa las categorías de productos para las subastas.
+    
+    Cada subasta pertenece a una categoría específica (por ejemplo: Smartphones, Laptops, Belleza).
+    Las categorías permiten agrupar y filtrar subastas por tipo de producto.
+    """
+    nombre = models.CharField(max_length=50, unique=True)
 
     class Meta:
-        ordering = ("id",)
+        ordering = ("id",)  # Ordenar las categorías por ID de forma ascendente
 
     def __str__(self):
+        """Representación en texto del objeto categoría."""
         return self.nombre
 
 class Subasta(models.Model):
-    ESTADO_CHOICES = (
-        ('abierta', 'Abierta'),
-        ('cerrada', 'Cerrada'),
-    )
+    """
+    Modelo principal que representa una subasta de producto.
     
-    titulo = models.CharField(max_length=150)
-    descripcion = models.TextField()
-    precio_inicial = models.DecimalField(
-        max_digits=10, 
-        decimal_places=2,
-        validators=[MinValueValidator(0.01, message="El precio debe ser mayor que 0")]
-    )
-    valoracion = models.DecimalField(
-        max_digits=3, 
-        decimal_places=2,
-        validators=[
-            MinValueValidator(1.0, message="La valoración debe ser al menos 1.0"),
-            MaxValueValidator(5.0, message="La valoración no puede ser mayor a 5.0")
-        ],
-        default=1.0  # Ahora el valor por defecto es 1.0
-    )
-    stock = models.IntegerField(
-        validators=[MinValueValidator(1, message="El stock debe ser al menos 1")]
-    )
-    marca = models.CharField(max_length=100)
-    categoria = models.ForeignKey(
-        Categoria, related_name="subastas", on_delete=models.CASCADE
-    )
-    imagen = models.URLField()
-    fecha_creacion = models.DateTimeField(auto_now_add=True)
-    fecha_cierre = models.DateTimeField()
-    estado = models.CharField(
-        max_length=10,
-        choices=ESTADO_CHOICES,
-        default='abierta'
-    )
+    Este modelo contiene toda la información relevante sobre un producto en subasta:
+    características, precio inicial, estado, propietario, etc. 
+    Las subastas pueden estar en estado 'abierta' o 'cerrada' según su fecha de cierre.
+    """
+    # Opciones predefinidas para el campo estado
+    ESTADO_CHOICES = (('abierta', 'Abierta'), ('cerrada', 'Cerrada'))
     
-    # Relación con el usuario que crea la subasta
-    usuario = models.ForeignKey(
-        CustomUser, 
-        related_name="subastas", 
-        on_delete=models.CASCADE,
-        null=True  # Temporalmente permitimos valores nulos para migración
-    )
+    titulo = models.CharField(max_length=150)  # Título descriptivo de la subasta
+    descripcion = models.TextField()  # Descripción detallada del producto
+    precio_inicial = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(0.01)])  # Precio mínimo para comenzar las pujas
+    valoracion = models.DecimalField(max_digits=3, decimal_places=2, validators=[MinValueValidator(1.0), MaxValueValidator(5.0)], default=1.0)  # Valoración media del producto (1-5)
+    stock = models.IntegerField(validators=[MinValueValidator(1)])  # Cantidad disponible del producto
+    marca = models.CharField(max_length=100)  # Marca del producto
+    categoria = models.ForeignKey(Categoria, related_name="subastas", on_delete=models.CASCADE)  # Categoría a la que pertenece
+    imagen = models.URLField()  # URL de la imagen del producto
+    fecha_creacion = models.DateTimeField(auto_now_add=True)  # Fecha automática de creación
+    fecha_cierre = models.DateTimeField()  # Fecha en que finaliza la subasta
+    estado = models.CharField(max_length=10, choices=ESTADO_CHOICES, default='abierta')  # Estado actual de la subasta
+    usuario = models.ForeignKey(CustomUser, related_name="subastas", on_delete=models.CASCADE, null=True)  # Usuario que creó la subasta
 
     class Meta:
-        ordering = ("id",)
+        ordering = ("id",)  # Ordenar las subastas por ID de forma ascendente
 
     def __str__(self):
+        """Representación en texto del objeto subasta."""
         return self.titulo
     
-    def clean(self):
-        from django.core.exceptions import ValidationError
-        
-        # Validar que la fecha de cierre sea posterior a la fecha de creación
-        if self.fecha_cierre and self.fecha_cierre <= timezone.now():
-            raise ValidationError({
-                'fecha_cierre': 'La fecha de cierre debe ser posterior a la fecha actual'
-            })
-        
-        # Validar que la fecha de cierre sea al menos 15 días después de la fecha actual
-        min_fecha_cierre = timezone.now() + timedelta(days=15)
-        if self.fecha_cierre and self.fecha_cierre < min_fecha_cierre:
-            raise ValidationError({
-                'fecha_cierre': 'La fecha de cierre debe ser al menos 15 días después de la fecha actual'
-            })
-    
     def save(self, *args, **kwargs):
-        # Actualizar el estado de la subasta según la fecha de cierre
+        """
+        Sobrescribe el método save para actualizar automáticamente el estado
+        de la subasta según su fecha de cierre al guardar.
+        """
         if self.fecha_cierre and self.fecha_cierre <= timezone.now():
-            self.estado = 'cerrada'
+            self.estado = 'cerrada'  # Si la fecha de cierre ha pasado, cambia a 'cerrada'
         else:
-            self.estado = 'abierta'
-        
-        self.full_clean()  # Ejecutar validaciones antes de guardar
+            self.estado = 'abierta'  # Si no, mantiene estado 'abierta'
         super().save(*args, **kwargs)
 
     def get_valoracion_media(self):
         """
-        Calcula la valoración media de la subasta basada en los ratings de los usuarios.
-        Si no hay valoraciones o hay algún error, devuelve el valor actual de valoracion o 1.0
+        Calcula y devuelve la valoración media de la subasta basada en los ratings.
+        Si no hay ratings, devuelve la valoración actual o 1.0 como valor por defecto.
         """
         try:
-            # Intentar obtener las valoraciones
-            ratings = Rating.objects.filter(subasta=self)
-            
+            ratings = Rating.objects.filter(subasta=self)  # Obtiene todos los ratings de esta subasta
             if ratings.exists():
-                # Calcular la media si hay valoraciones
-                valoracion_media = ratings.aggregate(avg_valor=Avg('valor'))['avg_valor']
-                # Redondear a 2 decimales para que sea compatible con el campo en Subasta
-                valoracion_media = round(valoracion_media, 2)
-                
-                # Actualizar el campo valoracion en la subasta para mantener compatibilidad
-                if self.valoracion != valoracion_media:
-                    Subasta.objects.filter(id=self.id).update(valoracion=valoracion_media)
-                    
-                return valoracion_media
-            
-            # Si no hay valoraciones, devolver el valor actual o 1.0
-            return self.valoracion if hasattr(self, 'valoracion') and self.valoracion else 1.0
-        except Exception as e:
-            # Si hay cualquier error (por ejemplo, problemas con la base de datos),
-            # simplemente devolver el valor actual de valoracion
-            return self.valoracion if hasattr(self, 'valoracion') and self.valoracion else 1.0
+                # Calcula el promedio y redondea a 2 decimales
+                return round(ratings.aggregate(avg_valor=Avg('valor'))['avg_valor'], 2)
+            return self.valoracion or 1.0  # Si no hay ratings, usa el valor actual o 1.0
+        except:
+            return self.valoracion or 1.0  # En caso de error, devuelve el valor actual o 1.0
 
 class Puja(models.Model):
-    subasta = models.ForeignKey(
-        Subasta, related_name="pujas", on_delete=models.CASCADE
-    )
-    cantidad = models.DecimalField(max_digits=10, decimal_places=2)
-    fecha_puja = models.DateTimeField(auto_now_add=True)
+    """
+    Modelo que representa una puja (oferta) realizada por un usuario en una subasta.
     
-    # Cambiando el campo pujador de CharField a ForeignKey
-    pujador = models.ForeignKey(
-        CustomUser,
-        related_name="pujas",
-        on_delete=models.CASCADE,
-        null=True  # Temporalmente permitimos valores nulos para migración
-    )
+    Cada puja está asociada a una subasta específica y registra la cantidad ofertada,
+    el usuario que la realizó y la fecha en que se hizo.
+    """
+    subasta = models.ForeignKey(Subasta, related_name="pujas", on_delete=models.CASCADE)  # Subasta asociada a esta puja
+    cantidad = models.DecimalField(max_digits=10, decimal_places=2)  # Monto ofertado
+    fecha_puja = models.DateTimeField(auto_now_add=True)  # Fecha y hora automática de la puja
+    pujador = models.ForeignKey(CustomUser, related_name="pujas", on_delete=models.CASCADE, null=True)  # Usuario que realizó la puja
 
     class Meta:
-        ordering = ("-fecha_puja",)  # Ordenar por fecha de puja descendente
+        ordering = ("-fecha_puja",)  # Ordenar pujas por fecha de manera descendente (más recientes primero)
 
     def __str__(self):
-        # Actualizar para manejar pujador como objeto CustomUser
+        """Representación en texto del objeto puja."""
         return f"{self.pujador.username} - ${self.cantidad} - {self.subasta.titulo}"
 
 class Rating(models.Model):
-    """Modelo para las valoraciones de usuarios a las subastas"""
-    valor = models.IntegerField(
-        validators=[
-            MinValueValidator(1, message="La valoración mínima es 1"),
-            MaxValueValidator(5, message="La valoración máxima es 5")
-        ]
-    )
-    usuario = models.ForeignKey(
-        CustomUser,
-        related_name="ratings",
-        on_delete=models.CASCADE
-    )
-    subasta = models.ForeignKey(
-        Subasta,
-        related_name="ratings",
-        on_delete=models.CASCADE
-    )
-    fecha_creacion = models.DateTimeField(auto_now_add=True)
-    fecha_actualizacion = models.DateTimeField(auto_now=True)
+    """
+    Modelo que representa una valoración realizada por un usuario a una subasta.
+    
+    Cada valoración tiene un valor numérico (1-5) y está asociada a un usuario
+    y una subasta específica. Un usuario solo puede valorar una vez cada subasta.
+    """
+    valor = models.IntegerField(validators=[MinValueValidator(1), MaxValueValidator(5)])  # Valoración numérica (1-5)
+    usuario = models.ForeignKey(CustomUser, related_name="ratings", on_delete=models.CASCADE)  # Usuario que hizo la valoración
+    subasta = models.ForeignKey(Subasta, related_name="ratings", on_delete=models.CASCADE)  # Subasta valorada
+    fecha_creacion = models.DateTimeField(auto_now_add=True)  # Fecha y hora de creación
+    fecha_actualizacion = models.DateTimeField(auto_now=True)  # Fecha y hora de última actualización
 
     class Meta:
-        # Cada usuario solo puede valorar una vez cada subasta
-        unique_together = ('usuario', 'subasta')
-        ordering = ('-fecha_actualizacion',)
-        # Añadir esta opción para usar la tabla existente sin intentar recrearla
-        db_table = 'subastas_rating'
+        unique_together = ('usuario', 'subasta')  # Un usuario solo puede valorar una vez cada subasta
+        ordering = ('-fecha_actualizacion',)  # Ordenar por fecha de actualización descendente
+        db_table = 'subastas_rating'  # Nombre explícito de la tabla en la base de datos
 
     def __str__(self):
+        """Representación en texto del objeto rating."""
         return f"{self.usuario.username} valoró {self.subasta.titulo} con {self.valor}"
 
 class Comentario(models.Model):
-    """Modelo para los comentarios de las subastas"""
-    titulo = models.CharField(max_length=100)
-    texto = models.TextField()
-    fecha_creacion = models.DateTimeField(auto_now_add=True)
-    fecha_actualizacion = models.DateTimeField(auto_now=True)
-    usuario = models.ForeignKey(
-        CustomUser,
-        related_name="comentarios",
-        on_delete=models.CASCADE
-    )
-    subasta = models.ForeignKey(
-        Subasta,
-        related_name="comentarios",
-        on_delete=models.CASCADE
-    )
+    """
+    Modelo que representa un comentario realizado por un usuario en una subasta.
+    
+    Los comentarios permiten a los usuarios expresar opiniones o hacer preguntas
+    sobre los productos en subasta. Cada comentario tiene un título, un texto,
+    y está asociado a un usuario y una subasta específica.
+    """
+    titulo = models.CharField(max_length=100)  # Título breve del comentario
+    texto = models.TextField()  # Contenido principal del comentario
+    fecha_creacion = models.DateTimeField(auto_now_add=True)  # Fecha y hora de creación
+    fecha_actualizacion = models.DateTimeField(auto_now=True)  # Fecha y hora de última actualización
+    usuario = models.ForeignKey(CustomUser, related_name="comentarios", on_delete=models.CASCADE)  # Usuario que hizo el comentario
+    subasta = models.ForeignKey(Subasta, related_name="comentarios", on_delete=models.CASCADE)  # Subasta comentada
 
     class Meta:
-        ordering = ('-fecha_creacion',)
+        ordering = ('-fecha_creacion',)  # Ordenar por fecha de creación descendente (más recientes primero)
         verbose_name = "Comentario"
         verbose_name_plural = "Comentarios"
 
     def __str__(self):
+        """Representación en texto del objeto comentario."""
         return f"{self.usuario.username}: {self.titulo} - {self.subasta.titulo}"

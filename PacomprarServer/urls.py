@@ -1,29 +1,27 @@
 """
 URL configuration for PacomprarServer project.
 
-The `urlpatterns` list routes URLs to views. For more information please see:
-    https://docs.djangoproject.com/en/5.2/topics/http/urls/
-Examples:
-Function views
-    1. Add an import:  from my_app import views
-    2. Add a URL to urlpatterns:  path('', views.home, name='home')
-Class-based views
-    1. Add an import:  from other_app.views import Home
-    2. Add a URL to urlpatterns:  path('', Home.as_view(), name='home')
-Including another URLconf
-    1. Import the include() function: from django.urls import include, path
-    2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
+Esta configuración central de URLs define las rutas principales de la API y conecta
+con las URLs de las aplicaciones individuales (subastas, usuarios).
 """
 from django.contrib import admin
 from django.urls import path, include
 from rest_framework_simplejwt.views import TokenRefreshView
 from usuarios.views import CustomTokenObtainPairView
 
-
 urlpatterns = [
+    # Panel de administración de Django
     path('admin/', admin.site.urls),
+    
+    # API para gestión de usuarios (registro, autenticación, perfil, etc.)
     path("api/usuarios/", include("usuarios.urls")),
+    
+    # API principal del sistema de subastas (subastas, categorías, pujas, etc.)
     path('api/', include('subastas.urls')),
+    
+    # Endpoints para la autenticación JWT
+    # Obtener token inicial (login)
     path('api/token/', CustomTokenObtainPairView.as_view(), name='token_obtain_pair'),
+    # Refrescar token sin requerir credenciales
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
 ]

@@ -88,21 +88,29 @@ WSGI_APPLICATION = 'PacomprarServer.wsgi.application'
 # Cargar las variables de entorno desde .env
 load_dotenv()
 
-# Conectar directamente a la base de datos sin usar dj_database_url
+# Usar SQLite para desarrollo local
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'db_pacomprar_dute',
-        'USER': 'db_pacomprar_dute_user',
-        'PASSWORD': 'gTG3nr8G2qTaTL1JTOQ8gPgVa5BBPk1C',
-        'HOST': 'dpg-cvr8rkq4d50c738g01e0-a.oregon-postgres.render.com',
-        'PORT': '5432',
-        'OPTIONS': {
-            'sslmode': 'require',
-            'connect_timeout': 30,
-        }
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',
     }
 }
+
+# Configuración de PostgreSQL para producción (comentada)
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.postgresql',
+#         'NAME': 'db_pacomprar_dute',
+#         'USER': 'db_pacomprar_dute_user',
+#         'PASSWORD': 'gTG3nr8G2qTaTL1JTOQ8gPgVa5BBPk1C',
+#         'HOST': 'dpg-cvr8rkq4d50c738g01e0-a.oregon-postgres.render.com',
+#         'PORT': '5432',
+#         'OPTIONS': {
+#             'sslmode': 'require',
+#             'connect_timeout': 30,
+#         }
+#     }
+# }
 
 
 # Password validation
