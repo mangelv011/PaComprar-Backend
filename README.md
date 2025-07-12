@@ -32,6 +32,7 @@ PacomprarServer is the backend for a web auction platform developed with Django 
 - `usuarios/`: User management and authentication.
 - `PacomprarServer/`: Main project configuration.
 
+
 ## Installation
 
 1. Clone the repository.
@@ -39,6 +40,19 @@ PacomprarServer is the backend for a web auction platform developed with Django 
 3. Configure the database and environment variables in `.env`.
 4. Run migrations with `python manage.py migrate`.
 5. Start the server with `python manage.py runserver`.
+
+## Deployment on Render
+
+PacomprarServer is deployed using [Render](https://render.com/), a cloud platform for hosting web services. Render automates the deployment process, making it easy to keep your application up-to-date and scalable.
+
+### Key points for Render deployment:
+
+- **Automatic Deploys:** Every push to the main branch triggers a new deployment.
+- **Environment Variables:** Sensitive data and configuration are managed securely via the Render dashboard.
+- **Database:** PostgreSQL is provisioned and managed by Render, with connection details set in the `.env` file.
+- **Static Files:** Static and media files can be served using Render's static site service or external storage (e.g., AWS S3).
+
+For more details, see the [Render documentation](https://render.com/docs/deploy-django).
 
 ## Collaborators
 
