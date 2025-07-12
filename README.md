@@ -56,10 +56,10 @@ For more details, see the [Render documentation](https://render.com/docs/deploy-
 
 ## Collaborators
 
-- **mange** (Main administrator)
-- [Add other collaborators here]
+- Javier Viseras
+- Miguel Ángel Vallejo
 
-Want to contribute? Fork the repo and submit your pull request.
+
 
 ## License
 
