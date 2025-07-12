@@ -56,9 +56,8 @@ For more details, see the [Render documentation](https://render.com/docs/deploy-
 
 ## Collaborators
 
-- Javier Viseras
-- Miguel Ángel Vallejo
-
+- Miguel Ángel Vallejo ([GitHub](https://github.com/mangelv011)) 
+- Javier Viseras ([GitHub](https://github.com/JVISERASS)) 
 
 
 ## License
